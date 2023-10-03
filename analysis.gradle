@@ -1,0 +1,133 @@
+boolean isCIEnvironment = System.getenv('CI') == "true"
+
+checkstyle {
+    configDirectory.set file("$rootDir/config/checkstyle")
+    configProperties = [projectDir: "${projectDir}"]
+    tasks.withType(Checkstyle) {
+        reports {
+            xml.required = true
+            html.required = true
+            html.stylesheet = resources.text.fromFile("$rootDir/config/checkstyle/checkstyle-custom.xsl")
+        }
+    }
+}
+
+spotless {
+    java {
+        target 'src/*/java/**/*.java'
+
+        importOrder('', 'java', 'javax', 'org', 'com', '\\#')
+        removeUnusedImports()
+        indentWithSpaces()
+    }
+}
+
+build.dependsOn spotlessApply
+
+spotbugs {
+    ignoreFailures = false
+    spotbugsTest.enabled = false
+}
+
+spotbugsMain {
+    reports {
+        boolean enableXmlReport = isCIEnvironment
+        boolean enableHtmlReport = !isCIEnvironment
+        xml.required = enableXmlReport
+        html.required = enableHtmlReport
+        reportLevel = "high"
+    }
+}
+
+pmd {
+    ruleSetConfig = resources.text.fromFile("$rootDir/config/pmd/pmd_ruleset.xml")
+    // The gradle pmd plugin will configure some ruleset(s) by default as well
+    // so they need to be cleared out so _only_ the ruleSetConfig for the project is used
+    ruleSets = []
+    ignoreFailures = false
+    pmdTest.enabled = false
+    consoleOutput = true
+}
+
+tasks.withType(Pmd) {
+    reports {
+        xml.required = true
+    }
+}
+
+jacocoTestReport {
+    dependsOn test // tests are required to run before generating the report
+    reports {
+        csv.required = false
+        xml.required = true
+        html.outputLocation = file("${buildDir}/reports/jacoco/html")
+    }
+    //jacocoTestExcludeClasses(classDirectories)
+
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: 'build/classes', exclude: [
+                    '**/*MapperImpl.class',
+                    '**/*Constants.class',
+                    '**/*ServiceApplication.class'
+            ])
+        }))
+    }
+
+}
+
+if (isCIEnvironment) {
+    jacocoTestCoverageVerification {
+        jacocoTestExcludeClasses(classDirectories)
+        violationRules {
+            rule {
+                limit {
+                    minimum = 0.90
+                }
+            }
+        }
+    }
+}
+
+private jacocoTestExcludeClasses(classDirectories) {
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: 'build/classes', exclude: [
+                '**/*MapperImpl.class',
+                '**/*Constants.class',
+                '**/*ServiceApplication.class'])
+    }))
+}
+
+test {
+    jvmArgs = [
+            // Allow code on the class path (example: OpenPojo) to do deep reflection to access nonpublic members
+            // https://github.com/OpenPojo/openpojo/issues/131
+            '--add-opens=java.base/java.time=ALL-UNNAMED',
+            // Blockhound instrumentation issue
+            // https://github.com/reactor/BlockHound/issues/33
+            '-XX:+AllowRedefinitionToAddDeleteMethods'
+    ]
+    finalizedBy jacocoTestReport
+    finalizedBy jacocoTestCoverageVerification
+}
+
+pitest {
+    junit5PluginVersion = '1.0.0'
+    targetClasses = ['com.blueyonder.*']
+    mainSourceSets = [sourceSets.main]
+    testSourceSets = [sourceSets.test]
+    jvmArgs = test.jvmArgs
+    threads = Runtime.runtime.availableProcessors()
+    timestampedReports = false
+    useClasspathFile = true     //useful with bigger projects on Windows
+    timeoutConstInMillis = 1000
+    outputFormats = ['XML', 'HTML']
+    mutationThreshold = 85 /* Minimum Mutation coverage at which the build should fail */
+    coverageThreshold = 85 /* Minimum Line coverage at which the build should fail */
+    excludedMethods = ['equals', 'hashCode', 'toString']
+    excludedClasses = ["*.generated.*", '*MapperImpl', '*Constants', '*ServiceApplication', '*ThreadLocalContextLifter*']
+    enableDefaultIncrementalAnalysis = true
+    failWhenNoMutations = false
+}
+
+check.dependsOn 'pitest'
