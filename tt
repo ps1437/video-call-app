@@ -1,0 +1,6 @@
+
+        runtimeOnly 'co.elastic.logging:logback-ecs-encoder'
+        runtimeOnly 'com.fasterxml.jackson.module:jackson-module-jaxb-annotations'
+
+dependency 'com.fasterxml.jackson.module:jackson-module-jaxb-annotations:2.14.0'
+            dependency 'co.elastic.logging:logback-ecs-encoder:1.5.0'
