@@ -9,13 +9,13 @@ const YourComponent = () => {
   const [gridColumnApi, setGridColumnApi] = useState(null);
   const [rowData, setRowData] = useState([]);
   const [paginationPageSize] = useState(10);
+  const [totalRowCount, setTotalRowCount] = useState(0);
 
   const columnDefs = [
     { headerName: 'ID', field: 'id' },
     { headerName: 'Name', field: 'name' },
     { headerName: 'Username', field: 'username' },
     { headerName: 'Email', field: 'email' }
-    // Add more columns as needed
   ];
 
   useEffect(() => {
@@ -24,10 +24,17 @@ const YourComponent = () => {
 
   const fetchData = () => {
     const page = gridApi ? Math.floor(gridApi.getFirstDisplayedRow() / paginationPageSize) + 1 : 1;
+    const sortModel = gridApi ? gridApi.getSortModel() : [];
 
-    axios.get(`https://jsonplaceholder.typicode.com/users?_page=${page}&_limit=${paginationPageSize}`)
+    const sortParams = sortModel.map(item => `${item.colId}_${item.sort}`).join(',');
+
+    axios.get(`https://jsonplaceholder.typicode.com/users?_page=${page}&_limit=${paginationPageSize}&_sort=${sortParams}`)
       .then(response => {
         setRowData(response.data);
+        if (response.headers['x-total-count']) {
+          const totalCount = parseInt(response.headers['x-total-count'], 10);
+          setTotalRowCount(totalCount);
+        }
       })
       .catch(error => {
         console.error('Error fetching data:', error);
@@ -50,6 +57,8 @@ const YourComponent = () => {
         domLayout='autoHeight'
         onGridReady={onGridReady}
         onPaginationChanged={fetchData}
+        onSortChanged={fetchData}
+        rowCount={totalRowCount}
       />
     </div>
   );
