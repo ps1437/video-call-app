@@ -24,11 +24,8 @@ const YourComponent = () => {
 
   const fetchData = () => {
     const page = gridApi ? Math.floor(gridApi.getFirstDisplayedRow() / paginationPageSize) + 1 : 1;
-    const sortModel = gridApi ? gridApi.getSortModel() : [];
 
-    const sortParams = sortModel.map(item => `${item.colId}_${item.sort}`).join(',');
-
-    axios.get(`https://jsonplaceholder.typicode.com/users?_page=${page}&_limit=${paginationPageSize}&_sort=${sortParams}`)
+    axios.get(`https://jsonplaceholder.typicode.com/users?_page=${page}&_limit=${paginationPageSize}`)
       .then(response => {
         setRowData(response.data);
         if (response.headers['x-total-count']) {
@@ -47,6 +44,35 @@ const YourComponent = () => {
     fetchData();
   };
 
+  const customPaginationTemplate = (params) => {
+    const totalPages = Math.ceil(totalRowCount / paginationPageSize);
+    const currentPage = params.api.paginationGetCurrentPage();
+    const isFirstPage = currentPage === 1;
+    const isLastPage = currentPage === totalPages;
+
+    const goToPreviousPage = () => {
+      if (!isFirstPage) {
+        params.api.paginationGoToPreviousPage();
+      }
+    };
+
+    const goToNextPage = () => {
+      if (!isLastPage) {
+        params.api.paginationGoToNextPage();
+      }
+    };
+
+    return (
+      <div className="ag-pagination">
+        <span className={`ag-icon ag-icon-first ${isFirstPage ? 'ag-disabled' : ''}`} onClick={() => goToPreviousPage()}></span>
+        <span className={`ag-icon ag-icon-previous ${isFirstPage ? 'ag-disabled' : ''}`} onClick={() => goToPreviousPage()}></span>
+        Page {currentPage}/{totalPages}
+        <span className={`ag-icon ag-icon-next ${isLastPage ? 'ag-disabled' : ''}`} onClick={() => goToNextPage()}></span>
+        <span className={`ag-icon ag-icon-last ${isLastPage ? 'ag-disabled' : ''}`} onClick={() => goToNextPage()}></span>
+      </div>
+    );
+  };
+
   return (
     <div className="ag-theme-alpine" style={{ height: '500px', width: '100%' }}>
       <AgGridReact
@@ -57,8 +83,7 @@ const YourComponent = () => {
         domLayout='autoHeight'
         onGridReady={onGridReady}
         onPaginationChanged={fetchData}
-        onSortChanged={fetchData}
-        rowCount={totalRowCount}
+        paginationNumberTemplate={customPaginationTemplate}
       />
     </div>
   );
